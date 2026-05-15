@@ -528,7 +528,12 @@ async function loadBusinesses(){
 // ── TRAILS ────────────────────────────────────────────────────────────────────
 async function loadTrails(){
   lyr.trails.clearLayers();
-  const q=`[out:json][timeout:20];(way["highway"="path"](${BBOX});way["highway"="footway"](${BBOX});way["highway"="track"]["surface"!="paved"](${BBOX});way["route"="hiking"](${BBOX}););out geom body;`;
+  const q=`[out:json][timeout:20];(
+    way["highway"="path"]["name"](${BBOX});
+    way["highway"="footway"]["name"](${BBOX});
+    way["highway"="track"]["surface"!="paved"](${BBOX});
+    way["route"="hiking"](${BBOX});
+  );out geom body;`;
   try{
     const ctrl=new AbortController();
     const t=setTimeout(()=>ctrl.abort(),18000);
