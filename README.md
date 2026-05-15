@@ -530,9 +530,9 @@ async function loadTrails(){
   lyr.trails.clearLayers();
   const q=`[out:json][timeout:20];(
     way["highway"="path"]["name"](${BBOX});
-    way["highway"="footway"]["name"](${BBOX});
-    way["highway"="track"]["surface"!="paved"](${BBOX});
-    way["route"="hiking"](${BBOX});
+    way["highway"="footway"]["name"]["footway"!="sidewalk"]["footway"!="crossing"](${BBOX});
+    way["highway"="track"]["name"](${BBOX});
+    way["leisure"="track"]["name"](${BBOX});
   );out geom body;`;
   try{
     const ctrl=new AbortController();
@@ -544,6 +544,10 @@ async function loadTrails(){
     d.elements.forEach(el=>{
       if(!el.geometry||el.geometry.length<2)return;
       const coords=el.geometry.map(pt=>[pt.lat,pt.lon]);
+      // Skip very short stubs under ~80m
+      let segLen=0;
+      for(let i=1;i<coords.length;i++) segLen+=haversineM(coords[i-1],coords[i]);
+      if(segLen<80)return;
       const name=el.tags?.name||el.tags?.ref||'';
       // Bold shadow underline for contrast
       lyr.trails.addLayer(L.polyline(coords,{color:'#052e0f',weight:10,opacity:0.5,lineCap:'round',lineJoin:'round',zIndexOffset:-200}));
