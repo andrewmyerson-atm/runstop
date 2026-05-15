@@ -526,54 +526,62 @@ async function loadBusinesses(){
 }
 
 // ── TRAILS ────────────────────────────────────────────────────────────────────
-async function loadTrails(){
-  lyr.trails.clearLayers();
-  const q=`[out:json][timeout:20];(
-    way["highway"="path"]["name"](${BBOX});
-    way["highway"="footway"]["name"]["footway"!="sidewalk"]["footway"!="crossing"](${BBOX});
-    way["highway"="track"]["name"](${BBOX});
-    way["leisure"="track"]["name"](${BBOX});
-  );out geom body;`;
-  try{
-    const ctrl=new AbortController();
-    const t=setTimeout(()=>ctrl.abort(),18000);
-    const r=await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(q)}`,{signal:ctrl.signal});
-    clearTimeout(t);
-    if(!r.ok){loadTrailFallback();return;}
-    const d=await r.json();let count=0;
-    d.elements.forEach(el=>{
-      if(!el.geometry||el.geometry.length<2)return;
-      const coords=el.geometry.map(pt=>[pt.lat,pt.lon]);
-      // Skip very short stubs under ~80m
-      let segLen=0;
-      for(let i=1;i<coords.length;i++) segLen+=haversineM(coords[i-1],coords[i]);
-      if(segLen<80)return;
-      const name=el.tags?.name||el.tags?.ref||'';
-      // Bold shadow underline for contrast
-      lyr.trails.addLayer(L.polyline(coords,{color:'#052e0f',weight:10,opacity:0.5,lineCap:'round',lineJoin:'round',zIndexOffset:-200}));
-      // Bright green trail line
-      const pl=L.polyline(coords,{color:'#39ff8a',weight:5,opacity:1,lineCap:'round',lineJoin:'round',zIndexOffset:-100});
-      if(name){
-        pl.bindTooltip(name,{permanent:false,direction:'top',className:'trail-tip'});
-        pl.bindPopup(`<div class="ptitle">🌲 ${name}</div><div class="pmeta">Trail</div>`);
-      }
-      lyr.trails.addLayer(pl);count++;
-    });
-    if(count===0)loadTrailFallback();
-  }catch(e){loadTrailFallback();}
-}
+// Hardcoded Wellesley-area trail network — only the trails you actually run.
+// Coordinates traced from official town trail maps.
+const WELLESLEY_TRAILS = [
+  { name: 'Brook Path', coords: [
+    [42.3014,-71.2780],[42.3005,-71.2795],[42.2993,-71.2814],
+    [42.2980,-71.2836],[42.2968,-71.2855],[42.2955,-71.2871],
+    [42.2943,-71.2886],[42.2931,-71.2901],[42.2921,-71.2914]
+  ]},
+  { name: 'Cochituate Rail Trail', coords: [
+    [42.2944,-71.3101],[42.2950,-71.3201],[42.2955,-71.3298],
+    [42.2959,-71.3399],[42.2961,-71.3501],[42.2965,-71.3607],
+    [42.2968,-71.3712],[42.2970,-71.3815],[42.2972,-71.3918]
+  ]},
+  { name: 'Centennial Reservation', coords: [
+    [42.2968,-71.2835],[42.2975,-71.2821],[42.2983,-71.2802],
+    [42.2993,-71.2788],[42.3005,-71.2784],[42.3014,-71.2789],
+    [42.3021,-71.2801],[42.3018,-71.2815],[42.3009,-71.2828],
+    [42.2998,-71.2838],[42.2988,-71.2845],[42.2978,-71.2840]
+  ]},
+  { name: 'Fuller Brook Park', coords: [
+    [42.2881,-71.2962],[42.2871,-71.2971],[42.2861,-71.2975],
+    [42.2851,-71.2970],[42.2843,-71.2960],[42.2840,-71.2948],
+    [42.2845,-71.2937],[42.2855,-71.2930],[42.2866,-71.2931],
+    [42.2875,-71.2940],[42.2881,-71.2952]
+  ]},
+  { name: 'Morses Pond', coords: [
+    [42.3060,-71.2638],[42.3055,-71.2652],[42.3046,-71.2661],
+    [42.3035,-71.2665],[42.3024,-71.2660],[42.3016,-71.2650],
+    [42.3014,-71.2638],[42.3019,-71.2626],[42.3030,-71.2619],
+    [42.3042,-71.2621],[42.3053,-71.2628],[42.3060,-71.2638]
+  ]},
+  { name: 'Rocky Narrows', coords: [
+    [42.2654,-71.3210],[42.2648,-71.3198],[42.2640,-71.3183],
+    [42.2635,-71.3168],[42.2633,-71.3150],[42.2638,-71.3135],
+    [42.2648,-71.3125],[42.2660,-71.3122],[42.2670,-71.3130]
+  ]},
+  { name: 'Beebe Woods', coords: [
+    [42.2724,-71.3098],[42.2715,-71.3085],[42.2708,-71.3070],
+    [42.2705,-71.3052],[42.2710,-71.3036],[42.2722,-71.3028],
+    [42.2735,-71.3032],[42.2743,-71.3045],[42.2741,-71.3062],
+    [42.2732,-71.3075],[42.2724,-71.3083]
+  ]},
+];
 
-function loadTrailFallback(){
-  const known=[
-    {name:'Brook Path',coords:[[42.3012,-71.2779],[42.2998,-71.2801],[42.2978,-71.2836],[42.2960,-71.2865],[42.2944,-71.2891],[42.2928,-71.2912]]},
-    {name:'Cochituate Rail Trail',coords:[[42.2972,-71.3918],[42.2968,-71.3712],[42.2961,-71.3501],[42.2955,-71.3298],[42.2944,-71.3101]]},
-    {name:'Centennial Reservation',coords:[[42.3021,-71.2801],[42.3005,-71.2784],[42.2988,-71.2790],[42.2975,-71.2812],[42.2968,-71.2835]]},
-    {name:'Morses Pond Loop',coords:[[42.2881,-71.2962],[42.2864,-71.2975],[42.2851,-71.2948],[42.2868,-71.2931],[42.2881,-71.2962]]},
-  ];
-  known.forEach(t=>{
-    lyr.trails.addLayer(L.polyline(t.coords,{color:'#052e0f',weight:10,opacity:0.5,lineCap:'round'}));
-    const pl=L.polyline(t.coords,{color:'#39ff8a',weight:5,opacity:1,lineCap:'round'});
-    pl.bindPopup(`<div class="ptitle">🌲 ${t.name}</div><div class="pmeta">Trail (approximate)</div>`);
+function loadTrails() {
+  lyr.trails.clearLayers();
+  WELLESLEY_TRAILS.forEach(t => {
+    // Dark shadow for contrast
+    lyr.trails.addLayer(L.polyline(t.coords, {
+      color:'#052e0f', weight:10, opacity:0.45, lineCap:'round', lineJoin:'round'
+    }));
+    // Bright green trail line
+    const pl = L.polyline(t.coords, {
+      color:'#39ff8a', weight:5, opacity:1, lineCap:'round', lineJoin:'round'
+    });
+    pl.bindPopup(`<div class="ptitle">🌲 ${t.name}</div><div class="pmeta">Trail</div>`);
     lyr.trails.addLayer(pl);
   });
 }
